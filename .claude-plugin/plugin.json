@@ -1,0 +1,12 @@
+{
+  "name": "teleprompter",
+  "description": "A local teleprompter and recorder. Claude starts it, you read and record from any camera or microphone, and the finished take comes back to the session.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Powderhond"
+  },
+  "homepage": "https://github.com/Powderhond/teleprompter",
+  "repository": "https://github.com/Powderhond/teleprompter",
+  "license": "MIT",
+  "keywords": ["teleprompter", "recording", "voiceover", "video", "camera"]
+}

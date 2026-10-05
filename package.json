@@ -1,0 +1,21 @@
+{
+  "name": "teleprompter",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A local teleprompter and recorder for Claude Code.",
+  "license": "MIT",
+  "repository": "github:Powderhond/teleprompter",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node skills/teleprompter/scripts/launch.mjs",
+    "stop": "node skills/teleprompter/scripts/launch.mjs --stop",
+    "models": "node skills/teleprompter/scripts/fetch-models.mjs",
+    "verify": "node skills/teleprompter/scripts/verify.mjs"
+  },
+  "devDependencies": {
+    "playwright": "1.58.2",
+    "sharp": "0.34.5"
+  }
+}

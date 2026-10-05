@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Teleprompter</title>
+<link rel="stylesheet" href="/app/app.css" />
+</head>
+<body class="mode-studio" data-state="idle">
+
+<!-- Prompter: in perform mode this fills the screen and parks its reading band
+     wherever the lens marker says the camera physically sits. -->
+<section id="stage" aria-label="Prompter">
+  <div id="scrollArea">
+    <div id="scrollInner">
+      <div id="scriptBody" aria-live="off"></div>
+    </div>
+  </div>
+  <div id="focusBand" aria-hidden="true"><span id="focusEdgeL"></span><span id="focusEdgeR"></span></div>
+  <div id="stageControls">
+    <button id="btnBackTop" class="ghost small" title="Home">Back to top</button>
+    <button id="btnRetake" class="ghost small danger" title="T">Retake</button>
+  </div>
+  <div id="lensMarker" tabindex="0" role="slider" aria-label="Camera lens position"
+       aria-valuetext="Drag to where your camera sits">
+    <span class="lens-dot"></span>
+    <span class="lens-label">lens</span>
+  </div>
+  <div id="countdown" hidden><span></span></div>
+  <div id="pip" title="Drag to move">
+    <video id="preview" playsinline muted></video>
+    <canvas id="composite"></canvas>
+    <div id="gazeHud" hidden>
+      <div id="gazeRing"><i id="gazeDot"></i></div>
+      <span id="gazeScore">--</span>
+    </div>
+    <p id="pipNote" hidden>audio only</p>
+  </div>
+</section>
+
+<header id="topbar">
+  <div class="tb-left">
+    <strong id="taskLabel">Teleprompter</strong>
+    <span id="scriptSource" class="muted"></span>
+  </div>
+  <div class="tb-mid">
+    <span id="recDot" class="dot"></span>
+    <span id="clock">0:00</span>
+    <span class="muted" id="paceReadout"></span>
+  </div>
+  <div class="tb-right">
+    <button id="btnFullscreen" class="ghost" title="Shift+F" aria-pressed="false">Fullscreen</button>
+    <button id="btnPerform" class="ghost" title="F">Go live</button>
+    <button id="btnRecord" class="primary" title="R">Record</button>
+  </div>
+</header>
+
+<aside id="panel">
+
+  <details open>
+    <summary>Devices</summary>
+    <label>Camera
+      <select id="selVideo"></select>
+    </label>
+    <label>Microphone
+      <select id="selAudio"></select>
+    </label>
+    <div id="levelMeter" title="Input level">
+      <i id="levelBar"></i>
+      <span id="levelText">speak and watch this</span>
+    </div>
+    <label>Recording format
+      <select id="selFormat">
+        <option value="mp4">MP4, H.264 (editors prefer this)</option>
+        <option value="webm">WebM, VP9</option>
+      </select>
+    </label>
+    <label>Resolution
+      <select id="selRes">
+        <option value="1920x1080">1080p</option>
+        <option value="1280x720" selected>720p</option>
+        <option value="640x360">360p (light on CPU)</option>
+      </select>
+    </label>
+    <div class="row">
+      <button id="btnRefresh" class="ghost small">Rescan devices</button>
+      <button id="btnMirrorCam" class="ghost small" aria-pressed="true">Mirror preview</button>
+    </div>
+    <p id="deviceNote" class="note"></p>
+  </details>
+
+  <details open>
+    <summary>Pace</summary>
+    <label>Words per minute <output id="wpmOut">140</output>
+      <input id="wpm" type="range" min="70" max="230" step="5" value="140" />
+    </label>
+    <label>Text size <output id="sizeOut">46</output>
+      <input id="fontSize" type="range" min="22" max="96" step="2" value="46" />
+    </label>
+    <label>Column width <output id="colOut">26</output>
+      <input id="colWidth" type="range" min="14" max="48" step="1" value="26" />
+    </label>
+    <div class="row">
+      <button id="btnMirrorText" class="ghost small" aria-pressed="false" title="M">Mirror text</button>
+      <button id="btnHoldSilence" class="ghost small" aria-pressed="false">Hold on silence</button>
+    </div>
+    <label id="placeLabel">Where the words sit</label>
+    <div id="placeGrid" role="group" aria-labelledby="placeLabel">
+      <button data-x="0.18" data-y="0.07" title="top left"></button>
+      <button data-x="0.5" data-y="0.07" title="top centre"></button>
+      <button data-x="0.82" data-y="0.07" title="top right"></button>
+      <button data-x="0.18" data-y="0.42" title="middle left"></button>
+      <button data-x="0.5" data-y="0.42" title="centre"></button>
+      <button data-x="0.82" data-y="0.42" title="middle right"></button>
+      <button data-x="0.18" data-y="0.78" title="bottom left"></button>
+      <button data-x="0.5" data-y="0.78" title="bottom centre"></button>
+      <button data-x="0.82" data-y="0.78" title="bottom right"></button>
+    </div>
+    <p class="note">Put the words wherever your camera is. You can also drag the
+      <strong>lens</strong> marker anywhere on the stage for a position in between.</p>
+    <p class="note">Hold on silence pauses the scroll while you are not speaking, so a
+      pause for breath does not leave you chasing the words.</p>
+    <p id="estimate" class="note"></p>
+  </details>
+
+  <details>
+    <summary>Background</summary>
+    <div class="row wrap" id="bgModes">
+      <button class="ghost small" data-bg="none" aria-pressed="true">Off</button>
+      <button class="ghost small" data-bg="blur">Blur</button>
+      <button class="ghost small" data-bg="colour">Colour</button>
+      <button class="ghost small" data-bg="image">Image</button>
+    </div>
+    <label>Blur strength <output id="blurOut">14</output>
+      <input id="blurAmount" type="range" min="4" max="40" step="2" value="14" />
+    </label>
+    <label>Colour
+      <input id="bgColour" type="color" value="#132a2f" />
+    </label>
+    <label>Image
+      <input id="bgImage" type="file" accept="image/*" />
+    </label>
+    <p id="bgNote" class="note"></p>
+  </details>
+
+  <details>
+    <summary>Gaze</summary>
+    <div class="row">
+      <button id="btnGaze" class="ghost small" aria-pressed="false" title="G">Gaze meter</button>
+      <button id="btnCalibrate" class="ghost small">Calibrate on lens</button>
+    </div>
+    <p class="note">Look straight into the lens and press Calibrate. The meter then
+      scores every frame against that baseline and nudges you when you drift down
+      into the words.</p>
+    <p id="gazeNote" class="note"></p>
+    <label>Correction strength <output id="gazeStrengthOut">60</output>
+      <input id="gazeStrength" type="range" min="20" max="100" step="5" value="60" />
+    </label>
+    <p class="note">The meter runs live. <strong>Correct gaze</strong> on a take runs
+      afterwards and writes a new file beside it, so you can play both and keep the one
+      you prefer. It warps the iris toward your lens baseline. It does not repaint the
+      eye, so small corrections hold up and large ones show.</p>
+  </details>
+
+  <details>
+    <summary>Script</summary>
+    <div class="row">
+      <button id="btnEditScript" class="ghost small">Edit script</button>
+      <button id="btnRestart" class="ghost small">Back to top</button>
+    </div>
+    <textarea id="scriptEditor" hidden rows="14" spellcheck="true"></textarea>
+    <div class="row" id="editorActions" hidden>
+      <button id="btnSaveScript" class="primary small">Done</button>
+      <button id="btnCancelScript" class="ghost small">Cancel</button>
+    </div>
+  </details>
+
+  <details open>
+    <summary>Takes</summary>
+    <ul id="takeList"><li class="muted">Nothing recorded yet.</li></ul>
+  </details>
+
+  <details>
+    <summary>Keys</summary>
+    <ul class="keys">
+      <li><kbd>Space</kbd> scroll / pause</li>
+      <li><kbd>R</kbd> record / stop</li>
+      <li><kbd>&uarr;</kbd><kbd>&darr;</kbd> pace</li>
+      <li><kbd>&larr;</kbd><kbd>&rarr;</kbd> jump block</li>
+      <li><kbd>F</kbd> go live</li>
+      <li><kbd>Shift</kbd>+<kbd>F</kbd> fullscreen</li>
+      <li><kbd>M</kbd> mirror text</li>
+      <li><kbd>B</kbd> background</li>
+      <li><kbd>G</kbd> gaze meter</li>
+      <li><kbd>T</kbd> retake</li>
+      <li><kbd>Home</kbd> back to top</li>
+      <li><kbd>Esc</kbd> back to setup</li>
+    </ul>
+  </details>
+
+</aside>
+
+<div id="toast" role="status" aria-live="polite" hidden></div>
+
+<dialog id="submitDialog">
+  <form method="dialog">
+    <h2>Send this take back to the session</h2>
+    <p class="muted" id="submitSummary"></p>
+    <label>Note for the task (optional)
+      <textarea id="submitNote" rows="3" placeholder="Second half is the keeper."></textarea>
+    </label>
+    <menu>
+      <button value="cancel" class="ghost">Cancel</button>
+      <button id="btnConfirmSubmit" value="submit" class="primary">Submit</button>
+    </menu>
+  </form>
+</dialog>
+
+<script type="module" src="/app/main.js"></script>
+</body>
+</html>

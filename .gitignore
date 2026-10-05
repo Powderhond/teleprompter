@@ -1,0 +1,11 @@
+node_modules/
+
+# Recordings stay on the machine that made them.
+.teleprompter/
+
+# Downloaded MediaPipe runtime and models, plus scratch folders the gaze passes serve
+# frames from. fetch-models.mjs recreates them and models.lock.json pins their hashes.
+skills/teleprompter/scripts/vendor/
+
+.vercel/
+*.log

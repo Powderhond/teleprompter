@@ -1,0 +1,45 @@
+{
+  "note": "SHA-256 of every third-party byte the teleprompter capture page loads. These run with browser camera access, so a fetch that disagrees with this lock fails.",
+  "tasksVisionVersion": "0.10.21",
+  "licence": "Apache-2.0 (MediaPipe Tasks Vision runtime and models)",
+  "updatedAt": "2026-10-01",
+  "files": {
+    "tasks-vision/vision_bundle.mjs": {
+      "sha256": "40f4123dfcd75cfa58add046919cc6f52fde66f009ff582997c09ba54c6ba27c",
+      "bytes": 137735,
+      "url": "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.21/vision_bundle.mjs"
+    },
+    "tasks-vision/wasm/vision_wasm_internal.js": {
+      "sha256": "4a97e2520ba506c680ecd6ba6acfb146888afa0e2746d57f205352bc6ebb82eb",
+      "bytes": 204284,
+      "url": "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.21/wasm/vision_wasm_internal.js"
+    },
+    "tasks-vision/wasm/vision_wasm_internal.wasm": {
+      "sha256": "f00ec4731faa23b3e714d00e88d4d10e2df5c0a427d3a2b4ae6e3526fdd14ef7",
+      "bytes": 9574032,
+      "url": "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.21/wasm/vision_wasm_internal.wasm"
+    },
+    "tasks-vision/wasm/vision_wasm_nosimd_internal.js": {
+      "sha256": "927def7b465c51b86e4b3060f93646aca4e27121f4b8fc0483786e407ea9cf1f",
+      "bytes": 204137,
+      "url": "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.21/wasm/vision_wasm_nosimd_internal.js"
+    },
+    "tasks-vision/wasm/vision_wasm_nosimd_internal.wasm": {
+      "sha256": "3821ea9b1f7fb8c549ef2a064ef5c85750bf375c545a49fd6eea0df44a95f1f4",
+      "bytes": 9448638,
+      "url": "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.21/wasm/vision_wasm_nosimd_internal.wasm"
+    },
+    "models/selfie_segmenter.tflite": {
+      "sha256": "191ac9529ae506ee0beefa6b2c945a172dab9d07d1e802a290a4e4038226658b",
+      "bytes": 249537,
+      "url": "https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_segmenter/float16/1/selfie_segmenter.tflite",
+      "why": "background replacement / blur"
+    },
+    "models/face_landmarker.task": {
+      "sha256": "64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff",
+      "bytes": 3758596,
+      "url": "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
+      "why": "iris + head pose for gaze metering and correction guidance"
+    }
+  }
+}

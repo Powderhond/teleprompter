@@ -1,0 +1,13 @@
+{
+  "name": "powderhond",
+  "owner": {
+    "name": "Powderhond"
+  },
+  "plugins": [
+    {
+      "name": "teleprompter",
+      "source": "./",
+      "description": "A local teleprompter and recorder. Claude starts it, you read and record from any camera or microphone, and the finished take comes back to the session."
+    }
+  ]
+}

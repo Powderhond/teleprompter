@@ -1,0 +1,319 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Phone Camera Check</title>
+<style>
+  /* One column, phone first: preview on top, the run button under the thumb, results below. */
+  :root {
+    --bg: #f3f4f1;
+    --surface: #ffffff;
+    --fg: #1d2421;
+    --muted: #5b6661;
+    --line: #d5dad6;
+    --accent: #1f6f5c;
+    --accent-fg: #ffffff;
+    --pass: #1f6f5c;
+    --fail: #a33a2a;
+    --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #141816; --surface: #1d2320; --fg: #e8ece9; --muted: #9aa69f;
+      --line: #2f3833; --accent: #5fc2a6; --accent-fg: #0d1512;
+      --pass: #5fc2a6; --fail: #ef8a78; color-scheme: dark;
+    }
+  }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg); color: var(--fg); font: 16px/1.45 var(--font);
+    padding-inline: 16px;
+    padding-block: calc(env(safe-area-inset-top, 0px) + 16px) calc(env(safe-area-inset-bottom, 0px) + 24px);
+  }
+  main { max-width: 34rem; margin: 0 auto; display: grid; gap: 16px; }
+  h1 { font-size: 1.35rem; margin: 0; text-wrap: balance; }
+  p { margin: 0; color: var(--muted); }
+  .stage {
+    position: relative; background: #000; border-radius: 12px; overflow: hidden;
+    aspect-ratio: 9 / 16; max-height: 62vh; width: 100%; max-width: 100%; margin: 0 auto;
+  }
+  .stage video { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .stage video.mirror { transform: scaleX(-1); }
+  .prompt {
+    position: absolute; inset: 0 0 auto 0; height: 34%; overflow: hidden;
+    background: linear-gradient(rgba(0,0,0,.72), rgba(0,0,0,.45) 70%, transparent);
+    color: #fff; font-size: 1.25rem; line-height: 1.4; padding: 14px 16px 0;
+  }
+  .prompt-inner { will-change: transform; }
+  .badge {
+    position: absolute; right: 10px; bottom: 10px; background: rgba(0,0,0,.6); color: #fff;
+    font: 600 .8rem var(--mono); padding: 4px 8px; border-radius: 6px;
+  }
+  .actions { display: grid; gap: 10px; grid-template-columns: 1fr 1fr; }
+  button {
+    font: 600 1rem var(--font); padding: 14px 12px; border-radius: 10px; border: 1px solid var(--line);
+    background: var(--surface); color: var(--fg); min-height: 48px;
+  }
+  button.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); grid-column: 1 / -1; }
+  button:disabled { opacity: .5; }
+  button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .status { font-weight: 600; color: var(--fg); min-height: 1.4em; }
+  ul.checks { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  ul.checks li { background: var(--surface); padding: 10px 12px; display: grid; grid-template-columns: 1.4rem 1fr; gap: 8px; }
+  ul.checks li .mark { font-weight: 700; }
+  ul.checks li.pass .mark { color: var(--pass); }
+  ul.checks li.fail .mark { color: var(--fail); }
+  ul.checks li .label { font-weight: 600; }
+  ul.checks li .detail { grid-column: 2; color: var(--muted); font: .85rem/1.4 var(--mono); overflow-wrap: anywhere; min-width: 0; }
+  textarea {
+    width: 100%; min-height: 9rem; font: .78rem/1.4 var(--mono); color: var(--fg); background: var(--surface);
+    border: 1px solid var(--line); border-radius: 10px; padding: 10px;
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>Phone camera check</h1>
+  <p>Tests whether this browser can run the teleprompter: front camera, a 5 second recording with words scrolling over it, and saving the clip.</p>
+
+  <div class="stage">
+    <video id="preview" class="mirror" playsinline muted autoplay></video>
+    <video id="playback" playsinline controls hidden></video>
+    <div class="prompt" id="prompt" hidden><div class="prompt-inner" id="promptInner">This is a five second test. Read these words out loud while they scroll, the way you would on a real take. If the words move smoothly and the camera keeps up, the browser can do the job.</div></div>
+    <span class="badge" id="badge" hidden></span>
+  </div>
+
+  <div class="actions">
+    <button class="primary" id="run" type="button">Start test</button>
+    <button id="save" type="button" disabled>Save clip</button>
+    <button id="copy" type="button" disabled>Copy results</button>
+  </div>
+  <div class="status" id="status" role="status" aria-live="polite">Tap Start test, then allow the camera and microphone.</div>
+
+  <ul class="checks" id="checks"></ul>
+
+  <label for="report" class="status">Results</label>
+  <textarea id="report" readonly></textarea>
+</main>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const results = {
+    page: location.href.split('#')[0].replace(/\/[^/]*$/, '/'),
+    userAgent: navigator.userAgent,
+    viewport: { w: innerWidth, h: innerHeight, dpr: devicePixelRatio },
+    secureContext: window.isSecureContext,
+    checks: {},
+    startedAt: new Date().toISOString(),
+  };
+  let clip = null;
+  let clipExt = 'mp4';
+
+  function record(key, ok, label, detail) {
+    results.checks[key] = { ok, detail };
+    const li = document.createElement('li');
+    li.className = ok ? 'pass' : 'fail';
+    li.innerHTML = '<span class="mark"></span><span class="label"></span><span class="detail"></span>';
+    li.querySelector('.mark').textContent = ok ? '✓' : '✗';
+    li.querySelector('.label').textContent = label;
+    li.querySelector('.detail').textContent = typeof detail === 'string' ? detail : JSON.stringify(detail);
+    $('checks').appendChild(li);
+    $('report').value = JSON.stringify(results, null, 2);
+  }
+  const status = (t) => { $('status').textContent = t; };
+  const errText = (e) => (e && (e.name || e.code) ? `${e.name || e.code}: ${e.message || ''}` : String(e));
+
+  // Only a local test server accepts results. On a static host, skip the upload
+  // entirely rather than pushing a clip over mobile data just to get a 404.
+  const HAS_SERVER = /^(127\.0\.0\.1|localhost)$/.test(location.hostname);
+
+  async function postBack(path, body, type) {
+    if (!HAS_SERVER) return false;
+    try {
+      const res = await fetch(path, { method: 'POST', headers: { 'content-type': type }, body });
+      return res.ok;
+    } catch { return false; }
+  }
+
+  const MIMES = [
+    'video/mp4;codecs=avc1.42E01E,mp4a.40.2', 'video/mp4;codecs=avc1,mp4a', 'video/mp4',
+    'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm',
+  ];
+
+  async function run() {
+    $('run').disabled = true;
+    $('checks').innerHTML = '';
+    results.checks = {};
+    record('secure', window.isSecureContext, 'Secure page (HTTPS)', String(window.isSecureContext));
+
+    if (!navigator.mediaDevices?.getUserMedia) {
+      record('gum', false, 'Camera API', 'navigator.mediaDevices.getUserMedia is missing');
+      status('This browser cannot reach the camera from a web page.');
+      return finish();
+    }
+
+    let stream;
+    try {
+      status('Asking for the camera and microphone…');
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'user', width: { ideal: 1080 }, height: { ideal: 1920 }, frameRate: { ideal: 30 } },
+        audio: { echoCancellation: false, noiseSuppression: true },
+      });
+    } catch (e) {
+      record('gum', false, 'Camera and microphone', errText(e));
+      status('The camera did not start. The results below say why.');
+      return finish();
+    }
+    const vt = stream.getVideoTracks()[0];
+    const at = stream.getAudioTracks()[0];
+    const vs = vt?.getSettings?.() ?? {};
+    record('gum', true, 'Camera and microphone', {
+      camera: vt?.label, width: vs.width, height: vs.height, fps: vs.frameRate, facing: vs.facingMode,
+      mic: at?.label ?? null,
+    });
+    try {
+      const caps = vt?.getCapabilities?.();
+      if (caps) results.cameraCapabilities = { width: caps.width, height: caps.height, frameRate: caps.frameRate, facingMode: caps.facingMode };
+    } catch {}
+    try {
+      const devs = await navigator.mediaDevices.enumerateDevices();
+      results.devices = devs.reduce((acc, d) => { acc[d.kind] = (acc[d.kind] || 0) + 1; return acc; }, {});
+    } catch {}
+
+    $('preview').srcObject = stream;
+    await $('preview').play().catch(() => {});
+    await new Promise((r) => setTimeout(r, 400));
+    const pv = $('preview');
+    results.previewSize = { w: pv.videoWidth, h: pv.videoHeight };
+
+    // Wake lock: the screen must not dim mid-take.
+    try {
+      const lock = await navigator.wakeLock?.request('screen');
+      record('wakelock', !!lock, 'Keep screen awake', lock ? 'granted' : 'API missing');
+      lock?.release?.();
+    } catch (e) { record('wakelock', false, 'Keep screen awake', errText(e)); }
+
+    const fsOk = !!(document.fullscreenEnabled || document.webkitFullscreenEnabled);
+    record('fullscreen', fsOk, 'Fullscreen for the page', fsOk ? 'available' : 'not available (normal on iPhone)');
+
+    if (!window.MediaRecorder) {
+      record('recorder', false, 'Recording', 'MediaRecorder is missing');
+      stream.getTracks().forEach((t) => t.stop());
+      return finish();
+    }
+    const supported = MIMES.filter((m) => { try { return MediaRecorder.isTypeSupported(m); } catch { return false; } });
+    results.supportedFormats = supported;
+    const mime = supported[0];
+
+    status('Recording 5 seconds. Read the words out loud.');
+    const chunks = [];
+    let rec;
+    try {
+      rec = new MediaRecorder(stream, { ...(mime ? { mimeType: mime } : {}), videoBitsPerSecond: 8_000_000 });
+    } catch (e) {
+      record('recorder', false, 'Recording', errText(e));
+      stream.getTracks().forEach((t) => t.stop());
+      return finish();
+    }
+    rec.ondataavailable = (ev) => { if (ev.data?.size) chunks.push(ev.data); };
+    const stopped = new Promise((r) => { rec.onstop = r; });
+
+    $('prompt').hidden = false;
+    const inner = $('promptInner');
+    inner.style.transition = 'none';
+    inner.style.transform = 'translateY(0)';
+    $('badge').hidden = false;
+    rec.start(1000);
+    const t0 = performance.now();
+    requestAnimationFrame(() => {
+      inner.style.transition = 'transform 5s linear';
+      inner.style.transform = `translateY(-${Math.max(0, inner.scrollHeight - 40)}px)`;
+    });
+    const tick = setInterval(() => { $('badge').textContent = `REC ${((performance.now() - t0) / 1000).toFixed(1)}s`; }, 100);
+    await new Promise((r) => setTimeout(r, 5000));
+    rec.stop();
+    await stopped;
+    clearInterval(tick);
+    $('badge').hidden = true;
+    $('prompt').hidden = true;
+    stream.getTracks().forEach((t) => t.stop());
+
+    const type = rec.mimeType || mime || 'video/mp4';
+    clipExt = type.includes('webm') ? 'webm' : 'mp4';
+    clip = new Blob(chunks, { type: type.split(';')[0] });
+    record('recorder', clip.size > 0, 'Recording', { format: type, sizeKB: Math.round(clip.size / 1024), chunks: chunks.length });
+
+    // Prove the clip opens, not just that bytes exist.
+    const pb = $('playback');
+    pb.src = URL.createObjectURL(clip);
+    const opened = await new Promise((resolve) => {
+      const done = (ok) => { pb.onloadedmetadata = pb.onerror = null; resolve(ok); };
+      pb.onloadedmetadata = () => done(true);
+      pb.onerror = () => done(false);
+      setTimeout(() => done(false), 8000);
+    });
+    record('playable', opened && pb.videoWidth > 0, 'Clip plays back', opened
+      ? { width: pb.videoWidth, height: pb.videoHeight, portrait: pb.videoHeight > pb.videoWidth, durationSec: Number.isFinite(pb.duration) ? +pb.duration.toFixed(2) : String(pb.duration) }
+      : 'the browser could not open its own recording');
+    $('preview').hidden = true;
+    pb.hidden = false;
+
+    const file = new File([clip], `camera-check.${clipExt}`, { type: clip.type });
+    let canShareFiles = false;
+    try { canShareFiles = !!navigator.canShare?.({ files: [file] }); } catch {}
+    record('share', canShareFiles, 'Share sheet can take the clip', canShareFiles ? 'yes' : 'no');
+    $('save').disabled = false;
+
+    const sent = await postBack('./clip?ext=' + clipExt, clip, clip.type);
+    results.clipSentToLaptop = sent;
+    status(sent ? 'Done. The clip and results reached the laptop.' : 'Done. Tap Copy results and paste them back to Claude.');
+    finish();
+  }
+
+  async function finish() {
+    results.finishedAt = new Date().toISOString();
+    $('report').value = JSON.stringify(results, null, 2);
+    $('copy').disabled = false;
+    $('run').disabled = false;
+    $('run').textContent = 'Run again';
+    await postBack('./result', JSON.stringify(results), 'application/json');
+  }
+
+  $('run').addEventListener('click', run);
+
+  $('save').addEventListener('click', async () => {
+    if (!clip) return;
+    const file = new File([clip], `camera-check.${clipExt}`, { type: clip.type });
+    try {
+      if (navigator.canShare?.({ files: [file] })) {
+        await navigator.share({ files: [file], title: 'Camera check' });
+        results.checks.shareUsed = { ok: true, detail: 'share sheet opened and completed' };
+      } else {
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(clip);
+        a.download = file.name;
+        a.click();
+        results.checks.shareUsed = { ok: true, detail: 'no share sheet, used a download' };
+      }
+    } catch (e) {
+      results.checks.shareUsed = { ok: false, detail: errText(e) };
+    }
+    $('report').value = JSON.stringify(results, null, 2);
+    postBack('./result', JSON.stringify(results), 'application/json');
+  });
+
+  $('copy').addEventListener('click', async () => {
+    const text = $('report').value;
+    try { await navigator.clipboard.writeText(text); status('Results copied. Paste them back to Claude.'); }
+    catch { $('report').select(); status('Select all in the box below and copy it.'); }
+  });
+})();
+</script>
+</body>
+</html>
