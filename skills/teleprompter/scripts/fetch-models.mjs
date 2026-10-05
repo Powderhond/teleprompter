@@ -147,6 +147,9 @@ async function main() {
 
   const nextFiles = {};
   const mismatches = [];
+  // Held in memory until every file has been checked. Writing as we go would put
+  // bytes that failed the lock on disk, where the capture page would load them.
+  const pending = [];
 
   for (const file of RUNTIME_FILES) {
     const rel = `tasks-vision/${file}`;
@@ -156,7 +159,7 @@ async function main() {
     const digest = sha256(buf);
     const known = lock.files?.[rel]?.sha256;
     if (known && known !== digest && !RELOCK) mismatches.push({ rel, known, digest });
-    await writeVendor(rel, buf);
+    pending.push({ rel, buf });
     nextFiles[rel] = { sha256: digest, bytes: buf.length, url };
     console.log(`  ${rel}  ${(buf.length / 1024).toFixed(0)} KB  ${digest.slice(0, 12)}`);
   }
@@ -166,7 +169,7 @@ async function main() {
     const digest = sha256(buf);
     const known = lock.files?.[model.dest]?.sha256;
     if (known && known !== digest && !RELOCK) mismatches.push({ rel: model.dest, known, digest });
-    await writeVendor(model.dest, buf);
+    pending.push({ rel: model.dest, buf });
     nextFiles[model.dest] = { sha256: digest, bytes: buf.length, url, why: model.why };
     console.log(`  ${model.dest}  ${(buf.length / 1024).toFixed(0)} KB  ${digest.slice(0, 12)}`);
   }
@@ -176,9 +179,21 @@ async function main() {
     for (const m of mismatches) {
       console.error(`  ${m.rel}\n    locked ${m.known}\n    got    ${m.digest}`);
     }
-    console.error('\nThe vendored files on disk now hold the NEW bytes. Review the diff, then');
-    console.error('re-run with --relock to accept them, or restore from git to reject them.');
+    console.error('\nNothing was written. If the new bytes are a release you trust, re-run with');
+    console.error('--relock to accept them.');
     process.exit(1);
+  }
+
+  for (const { rel, buf } of pending) await writeVendor(rel, buf);
+
+  // Rewrite the lock only when what it pins has changed, so a routine fetch leaves a
+  // clean working tree.
+  const pinsOf = (files) => JSON.stringify(Object.entries(files ?? {}).map(([k, v]) => [k, v.sha256]).sort());
+  const lockChanged = RELOCK || lock.tasksVisionVersion !== version || pinsOf(lock.files) !== pinsOf(nextFiles);
+  if (!lockChanged) {
+    console.log(`\nVendored to ${VENDOR}`);
+    console.log('Every file matched models.lock.json.');
+    return;
   }
 
   await writeFile(
